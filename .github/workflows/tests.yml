@@ -18,7 +18,9 @@ jobs:
           version: '0.113.1'
 
       - name: Install nutest
-        run: git clone --depth 1 --branch v1.1.0 https://github.com/vyadh/nutest.git nutest
+        run: |
+          git clone https://github.com/vyadh/nutest.git nutest
+          git -C nutest checkout c701a1114fff787453259b5563ab21e0afa5768d
 
       - name: Run tests
         run: |
