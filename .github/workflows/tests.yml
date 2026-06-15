@@ -21,10 +21,8 @@ jobs:
         run: git clone --depth 1 --branch v1.1.0 https://github.com/vyadh/nutest.git nutest
 
       - name: Run tests
-        shell: nu {0}
         run: |
-          use ./nutest/nutest
-          nutest run-tests --path tests --fail --report { type: 'junit', path: 'report.xml' }
+          nu -c "use ./nutest/nutest; nutest run-tests --path tests --fail --report { type: 'junit', path: 'report.xml' }"
 
       - name: Upload JUnit report
         if: always()
