@@ -11,7 +11,10 @@
 #     build:      list<string>   # dot-separated identifiers; [] when none
 #   }
 #
-# Decoding a string that does not conform to the spec raises an error.
+# Decoding a string that does not conform to the spec raises an error. The
+# record-consuming commands (encode, compare, bump) likewise raise a
+# descriptive error — showing the expected shape — when handed a record that
+# is missing any required field.
 #
 
 # Official spec regex (named-captures form) from semver.org. 
@@ -80,9 +83,36 @@ def decode-one []: string -> record {
   }
 }
 
+# A fully-populated example semver record exercising every field. Built via
+# the decoder so it is guaranteed to match the real decoded shape, and reused
+# to show the expected format in error messages.
+def example-record []: nothing -> record {
+  '1.2.3-rc.1+build.5' | decode-one
+}
+
+# Validate that the piped value is a semver record carrying every required
+# field, returning it unchanged. Raises a descriptive error — showing a
+# complete example record — when the shape is wrong.
+def check-record []: any -> record {
+  let v = $in
+  let example = example-record
+  if (($v | describe) | str starts-with 'record') == false {
+    error make {
+      msg: $"expected a semver record, got a ($v | describe).\nexpected shape, e.g.: ($example | to nuon)"
+    }
+  }
+  let missing = $example | columns | where {|c| $c not-in ($v | columns)}
+  if ($missing | is-not-empty) {
+    error make {
+      msg: $"semver record is missing required field\(s\) '($missing | str join "', '")'.\nexpected shape, e.g.: ($example | to nuon)"
+    }
+  }
+  $v
+}
+
 # Render one semver record back to its canonical string form.
 def encode-one []: record -> string {
-  let v = $in
+  let v = $in | check-record
   let pre = if ($v.prerelease | is-empty) { '' } else { '-' + ($v.prerelease | str join '.') }
   let bld = if ($v.build | is-empty) { '' } else { '+' + ($v.build | str join '.') }
   $"($v.major).($v.minor).($v.patch)($pre)($bld)"
@@ -105,13 +135,20 @@ export def decode []: [string -> record, list<string> -> list<record>] {
   }
 }
 
-# True when the piped string is a valid semver per the spec BNF.
+# True when the piped string is a valid semver per the spec BNF. Broadcasts
+# over a list of strings, returning one bool per element.
 @search-terms semver valid check
 @example "valid" { '1.2.3-rc.1' | semver is-valid } --result true
 @example "leading zero rejected" { '01.2.3' | semver is-valid } --result false
 @example "build allows leading zeros" { '1.2.3+01' | semver is-valid } --result true
-export def is-valid []: string -> bool {
-  $in =~ $SEMVER_REGEX
+@example "list broadcasting" { ['1.2.3' '01.2.3'] | semver is-valid } --result [true false]
+export def is-valid []: [string -> bool, list<string> -> list<bool>] {
+  let v = $in
+  if (($v | describe) == 'string') {
+    $v =~ $SEMVER_REGEX
+  } else {
+    $v | each { $in =~ $SEMVER_REGEX }
+  }
 }
 
 # Render a semver record back to its canonical string form, or a list
@@ -128,12 +165,15 @@ export def encode []: [record -> string, list<record> -> list<string>] {
   }
 }
 
-# Compare two semver records per spec.
+# Compare the piped semver record against another per spec. Returns -1 when
+# the piped record sorts before `other`, 1 when after, 0 when equal.
 @search-terms semver compare cmp precedence ordering
-@example "patch ordering" { semver compare ('1.2.3' | semver decode) ('1.2.4' | semver decode) } --result -1
-@example "prerelease ranks below release" { semver compare ('1.0.0-alpha' | semver decode) ('1.0.0' | semver decode) } --result -1
-@example "build metadata ignored" { semver compare ('1.0.0+abc' | semver decode) ('1.0.0+def' | semver decode) } --result 0
-export def compare [a: record, b: record]: nothing -> int {
+@example "patch ordering" { ('1.2.3' | semver decode) | semver compare ('1.2.4' | semver decode) } --result -1
+@example "prerelease ranks below release" { ('1.0.0-alpha' | semver decode) | semver compare ('1.0.0' | semver decode) } --result -1
+@example "build metadata ignored" { ('1.0.0+abc' | semver decode) | semver compare ('1.0.0+def' | semver decode) } --result 0
+export def compare [other: record]: record -> int {
+  let a = $in | check-record
+  let b = $other | check-record
   let c1 = cmp-int $a.major $b.major
   if $c1 != 0 { return $c1 }
   let c2 = cmp-int $a.minor $b.minor
@@ -150,9 +190,9 @@ export def compare [a: record, b: record]: nothing -> int {
 } --result ['1.2.0-rc.1' '1.2.0' '1.10.0']
 export def sort [--reverse]: list<record> -> list<record> {
   if $reverse {
-    $in | sort-by --custom {|a b| (compare $a $b) < 0} --reverse
+    $in | sort-by --custom {|a b| ($a | compare $b) < 0} --reverse
   } else {
-    $in | sort-by --custom {|a b| (compare $a $b) < 0} 
+    $in | sort-by --custom {|a b| ($a | compare $b) < 0}
   }
 }
 
@@ -161,7 +201,7 @@ export def sort [--reverse]: list<record> -> list<record> {
 @search-terms semver bump major increment
 @example "bump major" { '1.2.3-rc.1+build' | semver decode | semver bump major | semver encode } --result '2.0.0'
 export def "bump major" []: record -> record {
-  let v = $in
+  let v = $in | check-record
   { major: ($v.major + 1), minor: 0, patch: 0, prerelease: [], build: [] }
 }
 
@@ -170,7 +210,7 @@ export def "bump major" []: record -> record {
 @search-terms semver bump minor increment
 @example "bump minor" { '1.2.3-rc.1' | semver decode | semver bump minor | semver encode } --result '1.3.0'
 export def "bump minor" []: record -> record {
-  let v = $in
+  let v = $in | check-record
   { major: $v.major, minor: ($v.minor + 1), patch: 0, prerelease: [], build: [] }
 }
 
@@ -178,6 +218,6 @@ export def "bump minor" []: record -> record {
 @search-terms semver bump patch increment
 @example "bump patch" { '1.2.3' | semver decode | semver bump patch | semver encode } --result '1.2.4'
 export def "bump patch" []: record -> record {
-  let v = $in
+  let v = $in | check-record
   { major: $v.major, minor: $v.minor, patch: ($v.patch + 1), prerelease: [], build: [] }
 }

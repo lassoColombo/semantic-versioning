@@ -73,7 +73,7 @@ use semver
 # compare two versions
 let prerelease = ('1.0.0-alpha' | semver decode)
 let release = ('1.0.0' | semver decode)
-semver compare $prerelease $release
+$prerelease | semver compare $release
 # => -1   (prerelease ranks below release)
 
 # sort a list
@@ -107,9 +107,9 @@ semver compare $prerelease $release
 | Command | Signature | Description |
 |---------|-----------|-------------|
 | `semver decode` | `string -> record` / `list<string> -> list<record>` | Parse a semver string. Raises an error on non-conforming input. Broadcasts over lists. |
-| `semver is-valid` | `string -> bool` | True when the string conforms to the spec BNF. Header-only check that allocates no record. |
+| `semver is-valid` | `string -> bool` / `list<string> -> list<bool>` | True when the string conforms to the spec BNF. Allocates no record. Broadcasts over lists. |
 | `semver encode` | `record -> string` / `list<record> -> list<string>` | Render a record back to canonical string form. Inverse of `decode`. |
-| `semver compare` | `record record -> int` | Returns `-1`, `0`, or `1` per spec rule 11. Build metadata is ignored (rule 10). |
+| `semver compare` | `record -> int` | Compares the piped record against the `other` argument. Returns `-1`, `0`, or `1` per spec rule 11. Build metadata is ignored (rule 10). |
 | `semver sort` | `list<record> -> list<record>` | Sort by precedence. Pass `--reverse` for descending. |
 | `semver bump major` | `record -> record` | Increment major; reset minor/patch to `0`; clear prerelease and build. |
 | `semver bump minor` | `record -> record` | Increment minor; reset patch to `0`; clear prerelease and build. |

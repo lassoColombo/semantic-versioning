@@ -34,3 +34,13 @@ def "is-valid rejects malformed strings" [] {
     assert not ('1.2.3+' | is-valid)
     assert not ('1.2.3-rc_1' | is-valid)
 }
+
+@test
+def "is-valid broadcasts over a list" [] {
+    assert equal (['1.2.3' '01.2.3' '1.2.3-rc.1' 'nope'] | is-valid) [true false true false]
+}
+
+@test
+def "is-valid on empty list yields empty list" [] {
+    assert equal ([] | is-valid) []
+}

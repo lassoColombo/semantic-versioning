@@ -47,6 +47,11 @@ def "encode on empty list returns empty list" [] {
 }
 
 @test
+def "encode raises a descriptive error on a malformed record" [] {
+    assert error {|| { major: 1, minor: 2 } | encode }
+}
+
+@test
 def "encode is the inverse of decode for a wide range of valid versions" [] {
     let versions = [
         '0.0.0'

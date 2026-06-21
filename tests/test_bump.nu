@@ -69,3 +69,10 @@ def "bumps patch clears prerelease and build" [] {
     assert equal $r.prerelease []
     assert equal $r.build []
 }
+
+@test
+def "bump raises a descriptive error on a malformed record" [] {
+    assert error {|| { major: 1 } | bump major }
+    assert error {|| { major: 1 } | bump minor }
+    assert error {|| { major: 1 } | bump patch }
+}
