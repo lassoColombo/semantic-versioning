@@ -20,14 +20,9 @@
 
 ## Why?
 
-Sorting versions as strings goes wrong fast:
-```nu
-['1.10.0' '1.2.0' '1.2.0-rc.1'] | sort # => ['1.10.0' '1.2.0' '1.2.0-rc.1']
-```
+If you deal with semversions a lot you end up composing the same fragile regex over and over again. Reimplementing it is tedious and prone to error.  
 
-If you deal with semversions a lot you end up composing the same fragile regex over and over again. Reimplementing this is tedious.  
-It wuould be nice if we could simply treat them as structured data. Something like this:
-
+It wuould be nice if we could simply treat semversions as structured data. Something like this:
 ```nu
 {
   major:      int
@@ -38,14 +33,15 @@ It wuould be nice if we could simply treat them as structured data. Something li
 }
 ```
 
-Then we could have some utility functions for sorting, comparison, and bumping
+Then we could have some utility functions for sorting, comparing, and bumping
 ```nu
 '1.2.3-rc.1+build' 
 | semver decode # => {major: 1, minor: 2, patch: 3, prerelease: [rc, "1"], build: [build]}
 | semver bump major # => {major: 2, minor: 0, patch: 0, prerelease: [], build: []}
 | semver encode # => '2.0.0'
-
 ```
+
+Yeah this wuould be nice.
 
 ## Installation
 
@@ -69,12 +65,10 @@ use semver
 # => { major: 1, minor: 2, patch: 3, prerelease: [rc 1], build: [exp 5114] }
 
 # validate without throwing
-'01.2.3' | semver is-valid                       # => false (leading zero)
-'1.2.3+01' | semver is-valid                     # => true  (build allows it)
+'01.2.3' | semver is-valid # => false (leading zero)
 
 # round-trip
-'1.2.3-rc.1' | semver decode | semver encode
-# => '1.2.3-rc.1'
+'1.2.3-rc.1' | semver decode | semver encode # => '1.2.3-rc.1'
 
 # compare two versions
 let prerelease = ('1.0.0-alpha' | semver decode)
@@ -108,8 +102,6 @@ semver compare $prerelease $release
 }
 ```
 
-`'<x>' | semver decode | semver encode` is a fixed point for any spec-valid input.
-
 ## Commands
 
 | Command | Signature | Description |
@@ -123,20 +115,15 @@ semver compare $prerelease $release
 | `semver bump minor` | `record -> record` | Increment minor; reset patch to `0`; clear prerelease and build. |
 | `semver bump patch` | `record -> record` | Increment patch; clear prerelease and build. |
 
+
 ## Spec compliance
 
 Parsing uses the official [SemVer 2.0.0 BNF regex](https://semver.org/spec/v2.0.0.html).
 
 ### Non-conforming input
 
-`semver decode` is strict: a string that doesn't conform to the spec raises an error rather than producing a record. When decoding a list, a single bad item fails the whole pipeline.
-
-```nu
-'v1.2.3' | semver decode
-# => Error: not a valid semver string: 'v1.2.3'
-```
-
-When the input is untrusted (git tags, manifest fields, user input), either guard with `semver is-valid` before decoding or guard against the error:
+`semver decode` is strict: a string that doesn't conform to the spec raises an error rather than producing a record. When decoding a list, a single bad item fails the whole pipeline.  
+When the input is untrusted (git tags, manifest fields, user input), either guard with `semver is-valid` before decoding or against the error:
 ```nu
 ['1.4.0' 'v2' '2.0.0-rc.1' 'latest']
 | each { try {$in | semver decode} catch {null} }
@@ -147,8 +134,6 @@ When the input is untrusted (git tags, manifest fields, user input), either guar
 ```
 
 ## CI/CD recipes
-
-These compose `semver` with `git` to cover the version-management chores a release pipeline runs into. They're written as plain functions you can drop into a Nushell script step.
 
 ### Resolve the latest released version from git tags
 
