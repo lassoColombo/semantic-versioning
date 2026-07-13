@@ -338,7 +338,7 @@ def branch-tag [base: string, branch: string, sha: string]: nothing -> string {
     | semver decode
     | semver bump patch                          # the release line this branch is heading toward
     | merge { 
-        prerelease: [($branch | str downcase | str replace --all --regex '[^0-9a-z-]+' '-')]
+        prerelease: [($branch | str lowercase | str replace --all --regex '[^0-9a-z-]+' '-')]
         build: [$sha] 
     }
     | semver encode
